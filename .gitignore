@@ -197,6 +197,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# 每一步的训练产物体积很大，只保留 output 目录本身，不提交其中内容。
+[0-9][0-9]_*/output/*
+![0-9][0-9]_*/output/.gitkeep
+[0-9][0-9]_*/output_smoke/
+
 ### Python Patch ###
 # Poetry local configuration file - https://python-poetry.org/docs/configuration/#local-configuration
 poetry.toml
@@ -231,3 +236,4 @@ pyrightconfig.json
 # Custom rules (everything added below won't be overriden by 'Generate .gitignore File' if you use 'Update' option)
 .vscode
 output
+*/output/

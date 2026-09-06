@@ -1,0 +1,84 @@
+{
+  "_comments": {
+    "file": "第1步的数据源配置。修改数据集或下载地址时，只改这个文件，不需要修改 Python。",
+    "order": "sources 的排列顺序也是跨来源去重优先级；相同文章优先保留靠前来源的版本。",
+    "size": "配置不规定清洗后的语料总大小。当前明确选择约 18.731 GB 远端文件，最终正文大小以 output/manifest.json 为准。",
+    "source_id": "项目内部使用的唯一名称，只能包含小写字母、数字和下划线。",
+    "dataset": "传给 Hugging Face datasets.load_dataset 的数据集仓库名称。",
+    "url": "供人工查看、申请权限和核对许可的数据集页面，同时也是公开下载地址。",
+    "license_note": "许可和访问条件的简要提示；实际使用时应以数据集页面的最新原始协议为准。",
+    "text_fields": "依次尝试读取的正文字段；不填写时默认使用 text、content。",
+    "title_fields": "可选标题字段；不填写时默认使用 title，并把标题放在正文前。",
+    "config": "Hugging Face 数据集的子配置名称，例如 cmn_Hani 或 zh。",
+    "split": "需要读取的数据分片；不填写时默认使用 train。",
+    "data_files": "本次实际读取的远端文件。每个来源都必须明确填写字符串或字符串数组，避免误读整个仓库。",
+    "download_bytes": "Hugging Face API 返回的所选文件精确字节数之和，只用于下载空间估算，不是清洗后正文目标。",
+    "requires_access": "为 true 时，需要先登录 Hugging Face，并在数据集页面接受访问条款。",
+    "comment": "仅供阅读的来源说明，Python 会忽略该字段。"
+  },
+  "sources": [
+    {
+      "comment": "百科基线语料，知识密度较高、结构稳定，因此放在最前面并优先保留。",
+      "source_id": "wikipedia_zh",
+      "dataset": "fjcanyue/wikipedia-zh-cn",
+      "data_files": "wikipedia-zh-cn-20260501.json",
+      "download_bytes": 2393692848,
+      "url": "https://huggingface.co/datasets/fjcanyue/wikipedia-zh-cn",
+      "license_note": "请遵守数据集卡片及 Wikimedia CC BY-SA 条款"
+    },
+    {
+      "comment": "质量评分后的中文教育网页，是扩充通用中文能力的主要来源。",
+      "source_id": "fineweb_edu_zh",
+      "dataset": "opencsg/chinese-fineweb-edu-v2",
+      "data_files": [
+        "data/00000.parquet",
+        "data/00001.parquet",
+        "data/00002.parquet",
+        "data/00003.parquet",
+        "data/00004.parquet"
+      ],
+      "download_bytes": 4857695585,
+      "url": "https://huggingface.co/datasets/opencsg/chinese-fineweb-edu-v2",
+      "license_note": "Apache-2.0，并需遵守 OpenCSG 社区许可"
+    },
+    {
+      "comment": "补充中文新闻、政务、生活和互联网表达；正文主要存放在 content 字段。",
+      "source_id": "cci2_zh",
+      "dataset": "BAAI/CCI2-Data",
+      "data_files": [
+        "data/cci2-00000-of-00178.parquet",
+        "data/cci2-00001-of-00178.parquet"
+      ],
+      "download_bytes": 3835863228,
+      "url": "https://huggingface.co/datasets/BAAI/CCI2-Data",
+      "license_note": "需遵守 CCI 2.0 用户协议",
+      "text_fields": ["content", "text"],
+      "split": "cci2"
+    },
+    {
+      "comment": "包含网页、书籍和官方媒体等多种文体，用于降低纯百科语料造成的单一表达。",
+      "source_id": "telechat_ptd",
+      "dataset": "Tele-AI/TeleChat-PTD",
+      "data_files": [
+        "data/0.jsonl.gz",
+        "data/1.jsonl.gz"
+      ],
+      "download_bytes": 5214664507,
+      "url": "https://huggingface.co/datasets/Tele-AI/TeleChat-PTD",
+      "license_note": "Apache-2.0，并需遵守 TeleChat 数据协议",
+      "text_fields": ["data", "content", "text"]
+    },
+    {
+      "comment": "提供教材、教程和故事等长文本形式；它是模型生成的合成语料，使用前应抽样检查质量。",
+      "source_id": "cosmopedia_zh",
+      "dataset": "opencsg/chinese-cosmopedia",
+      "data_files": [
+        "data/00000.parquet",
+        "data/00001.parquet"
+      ],
+      "download_bytes": 2429244068,
+      "url": "https://huggingface.co/datasets/opencsg/chinese-cosmopedia",
+      "license_note": "Apache-2.0，并需遵守 OpenCSG 社区许可；属于合成语料"
+    }
+  ]
+}

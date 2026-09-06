@@ -1,112 +1,52 @@
 # Step 02: Tokenizer
 
-本步骤负责训练或准备分词器。分词器的作用是把自然语言文本转换成模型能理解的整数 token id。
+本步骤读取第 1 步的清洗语料，训练一份 Atman 自己的 32K Byte-Level BPE tokenizer。small、medium、large 三档模型共用它，不需要训练三份 tokenizer。
 
-第 1 步已经生成了清洗后的公开语料：
+## 输入与输出
 
-```text
-output/01_public_corpus/public_corpus.jsonl
-```
-
-第 2 步会基于这个文件训练 tokenizer，并把结果保存到：
+输入清单：
 
 ```text
-output/02_tokenizer/atman_tokenizer/
+01_public_corpus/output/manifest.json
 ```
 
-## 为什么要有分词器
-
-神经网络不能直接读字符串，它只能处理数字。  
-分词器负责完成这件事：
+脚本不会猜测文件名，而是读取清单中的全部 `corpus_*.jsonl` 分片。输出固定写入本步骤目录：
 
 ```text
-中文文本
-  ↓
-token
-  ↓
-token id
-  ↓
-模型输入
+02_tokenizer/output/atman_tokenizer/
+├── tokenizer.json
+├── tokenizer_config.json
+├── special_tokens_map.json
+└── metadata.json
 ```
 
-例如一句话：
+`metadata.json` 标记 `generated_by_step=02_tokenizer`，同时记录输入分片、实际训练文档数、词表大小和 `tokenizer.json` 的 SHA-256。第 3 步会用摘要检查 tokenizer 是否被换过。
 
-```text
-人工智能的未来是
-```
+## 为什么统一使用 32K
 
-会被编码成类似：
+- 模型参数量由层数、隐藏维度等决定，tokenizer 不需要跟着模型档位复制三份。
+- 32K 对中文、英文、数字和代码是较平衡的起点。
+- 词表继续增大会增加每个模型的 embedding 和输出层参数。
+- Byte-Level BPE 包含完整 byte alphabet，不认识的字符也能无损编码。
 
-```text
-[1234, 5678, 90, ...]
-```
+本项目把输入 embedding 与输出语言模型头共享权重，因此词表相关参数约等于
+`vocab_size × hidden_size`：
 
-模型真正学习的是这些数字序列。
+| 模型档位 | 隐藏维度 | 32K 词表参数 | 占该模型总参数的比例 |
+|---|---:|---:|---:|
+| `small` | 512 | 16.4M | 约 46% |
+| `medium` | 768 | 24.6M | 约 30% |
+| `large` | 1024 | 32.8M | 约 24% |
 
-## 为什么这里训练自己的 tokenizer
+如果改成 64K，上表的词表参数会翻倍，对 36M 的 small 尤其浪费；如果缩到
+16K，中文和中英混合文本通常会被切成更多 token，同样的 1024 长度能容纳的内容
+变少。32K 不是“对标 Qwen 就照搬”的数字，而是在本项目 36M、82M、134M 三档
+模型之间做出的统一折中。之后只有在真实语料上统计出明显更好的压缩率时，才值得
+重训 tokenizer；模型换档不需要重训。
 
-你之前使用的是 GPT-2 tokenizer。它能处理中文，但它主要不是为中文训练的，所以中文文本经常会被切得很碎。  
-切得太碎会带来两个问题：
+BPE 的合并统计主要使用 CPU 和内存，换 CUDA 通常不会明显加速。大语料首次训练可能较久，但只训练一次，后续三个模型都可以复用。
 
-- 同样一句中文会变成更多 token，训练更慢。
-- 模型更难学到稳定的中文词语和表达结构。
-
-所以教程里建议把“自训练 tokenizer”作为第 2 步。这样模型、数据、分词器都属于同一套训练流程。
-
-## 当前方案
-
-本教程使用 Byte-Level BPE tokenizer。
-
-选择它的原因：
-
-- 能处理中文、英文、数字、标点和特殊符号。
-- 不容易因为生僻字符产生大量 `<unk>`。
-- 和 GPT 类自回归语言模型比较搭。
-- 能保存成 Hugging Face Transformers 可直接加载的格式。
-
-## 输入
-
-默认输入：
-
-```text
-output/01_public_corpus/public_corpus.jsonl
-```
-
-每一行格式：
-
-```json
-{"text": "一段清洗后的文本", "generated_by_step": "01_public_corpus"}
-```
-
-脚本会读取其中的 `text` 字段。
-
-## 输出
-
-默认输出目录：
-
-```text
-output/02_tokenizer/atman_tokenizer/
-```
-
-主要文件包括：
-
-```text
-tokenizer.json
-tokenizer_config.json
-special_tokens_map.json
-metadata.json
-```
-
-其中 `metadata.json` 会记录这个 tokenizer 是由第 2 步生成的：
-
-```json
-{
-  "generated_by_step": "02_tokenizer",
-  "generated_by_step_name": "Tokenizer"
-}
-```
-
-## 运行方式
+## 正式运行
 
 在项目根目录运行：
 
@@ -114,51 +54,32 @@ metadata.json
 python 02_tokenizer/train_tokenizer.py
 ```
 
-训练更小的 tokenizer：
+默认配置：
 
-```bash
-python 02_tokenizer/train_tokenizer.py --vocab-size 16000
-```
+| 参数 | 默认值 | 含义 |
+|---|---:|---|
+| `--vocab-size` | 32000 | 目标词表大小 |
+| `--min-frequency` | 2 | 子词至少出现的次数 |
+| `--model-max-length` | 1024 | tokenizer 声明的默认上下文长度 |
+| `--max-documents` | 0 | 0 表示读取所有第 1 步文本 |
 
-限制最多读取多少条文本：
+## 小规模验证
 
-```bash
-python 02_tokenizer/train_tokenizer.py --max-samples 5000
-```
-
-指定输入输出：
+试跑必须使用独立输出目录，避免试验 tokenizer 被后续步骤误用：
 
 ```bash
 python 02_tokenizer/train_tokenizer.py \
-  --input-path output/01_public_corpus/public_corpus.jsonl \
-  --output-dir output/02_tokenizer/atman_tokenizer
+  --max-documents 10000 \
+  --vocab-size 8000 \
+  --output-dir 02_tokenizer/output_smoke/atman_tokenizer
 ```
 
-## 参数说明
+正式输出存在 `metadata.json` 时脚本会拒绝覆盖。需要重训时，应先确认旧 tokenizer 已经不再被第 3、4 步使用，再手动清理对应输出目录。
 
-| 参数 | 默认值 | 说明 |
-|---|---|---|
-| `--input-path` | `output/01_public_corpus/public_corpus.jsonl` | 第 1 步生成的清洗语料 |
-| `--output-dir` | `output/02_tokenizer/atman_tokenizer` | tokenizer 输出目录 |
-| `--vocab-size` | `32000` | 词表大小 |
-| `--min-frequency` | `2` | token 至少出现多少次才进入词表 |
-| `--max-samples` | `0` | 最多读取多少条文本，`0` 表示不限 |
-| `--text-field` | `text` | JSONL 里的文本字段名 |
+## 完成检查
 
-## 如何检查效果
-
-训练完成后，脚本会打印一个测试句子的编码和解码结果。重点看：
-
-- 解码后是否能还原原句。
-- 中文是否被切得过碎。
-- tokenizer 文件是否保存到 `output/02_tokenizer/`。
-
-## 下一步
-
-完成 tokenizer 后，进入：
-
-```text
-03_encoding
+```bash
+python -c "from transformers import AutoTokenizer; t=AutoTokenizer.from_pretrained('02_tokenizer/output/atman_tokenizer'); print(len(t), t.encode('人工智能'))"
 ```
 
-第 3 步会使用这个 tokenizer，把清洗语料编码成固定长度的训练数据。
+确认词表能加载、中文能编码后，再进入第 3 步。
