@@ -1,0 +1,65 @@
+# Tokenizer 独立配置，不属于任何单一模型规格。
+# schema_version 只用于配置格式兼容；当前脚本仅接受 1。
+schema_version: 1
+
+# 相对于本文件的路径。Tokenizer 脚本由此取得处理后数据的位置和字段名。
+data_config: data.yaml
+
+# 当前实现支持 Byte-level BPE；修改算法需要同步更换训练实现。
+algorithm: byte_level_bpe
+# 正式候选、评测结果和最终词表的保存目录。
+output_dir: data/tokenizer
+# 保持为 true，保证不同模型规格使用完全相同的 token ID。
+shared_by_all_model_sizes: true
+
+# 增大词表会增加 embedding 参数但缩短序列；最终按验证集阈值自动选择。
+candidate_vocab_sizes:
+  - 16384
+  - 32000
+
+special_tokens:
+  # 文档/生成结束标记；替换后必须重新训练 Tokenizer 和模型。
+  eos_token: "<|endoftext|>"
+  # 批处理补齐标记；训练损失中需要屏蔽对应位置。
+  pad_token: "<|padding|>"
+
+# 当前架构不自动插入 BOS；改为非空值需要同步模型输入模板。
+bos_token: null
+# Byte-level 能覆盖任意 UTF-8 字节，因此不需要 UNK。
+unk_token: null
+# 不在分词器内改写正文，清理规则由 data.yaml 统一负责。
+normalizer: null
+
+pre_tokenizer:
+  # 按字节可逆切分，避免未登录字符。
+  type: byte_level
+  # 开启会给句首虚拟补空格并改变全部切分结果。
+  add_prefix_space: false
+  # 开启 GPT-2 风格正则预切分；修改后必须重新训练和编码语料。
+  use_regex: true
+
+training:
+  # 只使用训练集训练词表，防止验证集参与拟合。
+  source_split: train
+  # 增大可提高低频模式覆盖，但增加训练时间和磁盘读取量。
+  sample_documents: 1000000
+  # 固定随机索引采样，避免只取文件头部造成分布偏差。
+  sample_method: deterministic_random_indices
+  # 修改会更换训练词表所用的文档样本。
+  sample_seed: 42
+  # 提高会减少低频合并，实际词表可能无法达到目标大小。
+  min_frequency: 2
+  # 预置 256 个字节，保证任意 UTF-8 文本均可编码。
+  initial_alphabet: byte_level
+
+evaluation:
+  # 候选只在独立验证集上比较。
+  source_split: validation
+  # 增大可使指标更稳定，但评测耗时更长。
+  max_documents: 50000
+  # Byte-level 设计目标；关闭会破坏无未知词保证，因此脚本不允许关闭。
+  require_zero_unknown_tokens: true
+  # 要求 encode 后再 decode 与原文完全一致。
+  require_exact_roundtrip: true
+  # 提高该值更倾向选择 16K，降低则更倾向选择 32K。
+  max_smaller_token_inflation: 0.15

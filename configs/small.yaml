@@ -1,0 +1,49 @@
+# small 模型配置。数据和 Tokenizer 使用各自的独立配置。
+# 配置格式版本；当前训练入口只接受 1。
+schema_version: 1
+
+profile:
+  # 输出目录、日志和实验记录使用该名称。
+  name: small
+  # 当前配置用于基础预训练，后续阶段应使用独立配置。
+  stage: pretraining
+
+# 模型结构。max_seq_len 必须等于 data.yaml 的 encoding.sequence_length。
+model:
+  vocab_size: 16384       # 词表大小；必须与 data/tokenizer/final 一致。
+  max_seq_len: 2048      # 单条样本长度；增大显存和计算量约按平方增长。
+  d_model: 512            # 隐藏维度；增大模型容量和每步显存。
+  n_layers: 8              # Transformer 层数；增大深度和训练时间。
+  n_heads: 8               # 注意力头数；d_model 必须能整除它。
+  ffn_dim: 2048            # 前馈层中间维度；通常约为 d_model 的 4 倍。
+  dropout: 0.0             # 预训练通常关闭 dropout，改大可增强正则但降低拟合速度。
+  bias: true               # Linear/LayerNorm 是否带 bias；关闭可略减参数。
+  tie_embeddings: true     # 输入 embedding 与输出头共享权重，可显著减少参数。
+
+data_config: data.yaml     # 数据配置文件，路径相对当前 configs 目录。
+
+# 只保存与 small 规格相关的预训练超参数。
+training:
+  output_dir: outputs/small # checkpoint、日志保存目录。
+  seed: 42                  # 随机种子；改变会影响初始化和 batch 顺序。
+  epochs: 1                 # 完整遍历训练集的次数；max_steps>0 时优先用 max_steps。
+  max_steps: 0              # 0 表示按 epochs 训练；正数用于受控实验。
+  batch_size: 2             # 每张 GPU 的 micro batch；显存不足时减小它。
+  gradient_accumulation_steps: 8 # 梯度累积次数；增大有效 batch 但降低更新频率。
+  learning_rate: 0.0003     # AdamW 峰值学习率。
+  min_learning_rate: 0.00003 # cosine 衰减的最低学习率。
+  warmup_ratio: 0.01        # 总更新步前 warmup 比例。
+  weight_decay: 0.1         # AdamW 权重衰减。
+  beta1: 0.9
+  beta2: 0.95
+  adam_eps: 0.00000001
+  max_grad_norm: 1.0        # 梯度裁剪阈值，0 表示关闭。
+  precision: bf16           # bf16/fp16/fp32；不支持 bf16 的 GPU 会自动降为 fp16。
+  num_workers: 4            # DataLoader 子进程数；I/O 慢时可增加。
+  pin_memory: true          # CUDA 训练建议开启。
+  drop_last: true           # 丢弃不完整 micro batch，保证 DDP batch 形状一致。
+  log_every_steps: 10
+  eval_every_steps: 500
+  eval_batches: 100
+  save_every_steps: 500
+  resume: null              # 填 checkpoint 路径可断点恢复。
