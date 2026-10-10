@@ -1,5 +1,7 @@
 # Atman v1-dense：现代 Dense 长上下文模型
 
+> 状态：项目脚手架和架构方案已建立；Dense 模型、长上下文编码、评测和正式训练尚未实现。
+
 ## 1. 版本定位
 
 `v1-dense` 是 v1 阶段的现代 Dense 模型方案。它保留 Decoder-only 自回归语言模型作为主干，引入当前常见的效率和长上下文设计，用于研究结构升级对训练稳定性、显存、吞吐和生成质量的影响。
@@ -50,7 +52,7 @@
 ├── configs/                  # 数据、Tokenizer 和 Dense 模型配置
 ├── data/                     # 从 v1-base 复制的公共数据与 Tokenizer
 ├── src/                      # Dense 模型、数据和训练实现
-├── scripts/                  # 下载、处理、编码、训练和评测入口
+├── scripts/                  # 下载、处理、编码、训练和评测入口（eval.py 当前为占位）
 ├── outputs/                  # checkpoint、日志和样例
 ├── evals/                    # 固定提示词与评测结果
 └── docs/
