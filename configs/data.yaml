@@ -1,0 +1,68 @@
+# 数据处理配置。来源、许可、字节数、行数和 SHA-256 存放在 manifest.json。
+# schema_version 只用于配置格式兼容；当前脚本仅接受 1。
+schema_version: 1
+
+# 正式语料。相对路径以当前 v1 分支根目录为基准。
+source_file: data/raw/minimind/pretrain_t2t.jsonl
+# 仅用于 --input mini 的管线验证，不参与正式训练或验证。
+smoke_file: data/raw/minimind/pretrain_t2t_mini.jsonl
+# 原始数据来源与完整性清单。
+manifest_file: data/raw/minimind/manifest.json
+# JSONL 正文字段；仅当原始数据的正文键名发生变化时修改。
+text_field: text
+
+# 处理产物目录；修改后 Tokenizer 会从新目录读取。
+output_dir: data/processed
+# 清洗、去重后进入训练分区的 JSONL 文件名。
+train_file: train.jsonl
+# 独立验证分区文件名；不得用于训练 Tokenizer 或模型。
+validation_file: validation.jsonl
+# 数据计数、统计、来源和运行信息报告。
+report_file: audit_report.json
+
+# 数据处理规则。修改这些值后必须重新生成全部处理产物。
+# 关闭会保留完全相同的正文，增加语料量但也增加重复学习。
+exact_deduplication: true
+# stable_text_hash 保证同一正文不因输入顺序变化而更换分区。
+split_method: stable_text_hash
+# 修改种子会重新分配训练集和验证集。
+split_seed: 42
+# 提高比例会增加验证样本、减少训练样本；0.005 表示约 0.5%。
+validation_ratio: 0.005
+
+# 只影响报告中长度分位数的近似精度，不改变训练数据。
+statistics_sample_size: 100000
+
+cleaning:
+  # 把 CRLF/CR 统一为 LF，避免平台换行差异形成伪重复。
+  normalize_line_endings: true
+  # 删除无法参与正常文本训练的 NUL 字符。
+  remove_nul: true
+  # 删除无意义控制字符，但保留换行和制表符。
+  remove_control_characters: true
+  # 删除正文首尾空白；关闭后空白会参与去重和训练。
+  strip_outer_whitespace: true
+  # null 保留原始 Unicode；改为 NFC/NFKC 等会改变正文及去重结果。
+  unicode_normalization: null
+  # 开启会统一转为小写并损失大小写信息。
+  lowercase: false
+  # 当前不支持简繁转换；改为 true 会报错。
+  simplified_traditional_conversion: false
+
+# 文本编码与定长打包配置。修改任一字段后必须重新生成 data/encoded。
+encoding:
+  # 使用已经验收的正式 Tokenizer；不能使用候选词表目录。
+  tokenizer_dir: data/tokenizer/final
+  # 二进制 token ID 文件和编码报告的保存目录。
+  output_dir: data/encoded
+  # 每个样本的输入长度；文件中每个样本实际保存 sequence_length + 1 个 ID，
+  # 供因果语言模型构造 input_ids[:-1] 和 labels[1:]。
+  sequence_length: 2048
+  # 在每篇文档后加入 EOS，避免相邻文档边界被当作自然连续文本。
+  append_eos: true
+  # 16K 词表可以使用 uint16，文件体积约为 uint32 的一半。
+  dtype: uint16
+  # 输出文件名；修改后训练入口必须读取同一组名称。
+  train_file: train.bin
+  validation_file: validation.bin
+  report_file: encoding_report.json
