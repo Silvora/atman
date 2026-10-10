@@ -1,0 +1,56 @@
+# large 模型配置。数据和 Tokenizer 使用各自的独立配置。
+# 配置格式版本；当前训练入口只接受 1。
+schema_version: 1
+
+profile:
+  # 输出目录、日志和实验记录使用该名称。
+  name: large
+  # 当前配置用于基础预训练，后续阶段应使用独立配置。
+  stage: pretraining
+
+architecture:
+  family: dense_decoder
+  attention: gqa
+  position_encoding: rope
+  normalization: rmsnorm
+  feed_forward: swiglu
+  target_context_length: 32768
+  extension_context_length: 131072
+
+model:
+  vocab_size: 16384       # 必须与正式 Tokenizer 词表一致。
+  max_seq_len: 2048      # 长度越大，注意力显存和计算量越高。
+  d_model: 1024           # 隐藏维度。
+  n_layers: 24             # Transformer 层数。
+  n_heads: 16              # 注意力头数，1024 可被 16 整除。
+  ffn_dim: 4096            # 前馈层中间维度。
+  dropout: 0.0
+  bias: true
+  tie_embeddings: true
+
+data_config: data.yaml     # 相对 configs/ 解析。
+
+training:
+  output_dir: outputs/large
+  seed: 42
+  epochs: 1
+  max_steps: 0
+  batch_size: 1
+  gradient_accumulation_steps: 32
+  learning_rate: 0.0002
+  min_learning_rate: 0.00002
+  warmup_ratio: 0.01
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  adam_eps: 0.00000001
+  max_grad_norm: 1.0
+  precision: bf16
+  num_workers: 4
+  pin_memory: true
+  drop_last: true
+  log_every_steps: 10
+  eval_every_steps: 500
+  eval_batches: 100
+  save_every_steps: 500
+  resume: null
