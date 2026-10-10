@@ -1,5 +1,7 @@
 # Atman v1-moe：MoE、MLA 与长上下文模型
 
+> 状态：项目脚手架和架构方案已建立；MLA、MoE 路由、长上下文编码、评测和正式训练尚未实现。
+
 ## 1. 版本定位
 
 `v1-moe` 是 v1 阶段的稀疏专家模型方案。它在 Decoder-only 自回归语言模型基础上研究 Mixture-of-Experts、Multi-head Latent Attention 和长上下文，目标是比较总参数量、激活参数量、训练成本、KV Cache 和模型能力之间的关系。
@@ -50,7 +52,7 @@ MoE 和 MLA 都会改变张量形状、通信方式和 checkpoint 格式，因�
 ├── configs/                  # MoE、MLA、数据和 Tokenizer 配置
 ├── data/                     # 从 v1-base 复制的数据与 Tokenizer
 ├── src/                      # MLA、MoE、路由和训练实现
-├── scripts/                  # 数据、训练、评测和检查入口
+├── scripts/                  # 数据、训练、评测和检查入口（eval.py 当前为占位）
 ├── outputs/                  # checkpoint、路由统计和训练日志
 ├── evals/                    # 质量、长上下文和效率评测
 └── docs/
