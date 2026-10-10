@@ -1,6 +1,6 @@
 # Atman v1：基础语言模型阶段
 
-> 状态：正式语料过滤、划分、Tokenizer、token ID 编码和模型训练入口已完成；正式预训练尚未启动。
+> 状态：正式语料过滤、划分、Tokenizer、token ID 编码、训练、评测和聊天入口已完成；正式预训练尚未启动。
 
 ## 1. 版本定位
 
@@ -118,7 +118,8 @@ evaluation:  # PPL 与生成评测设置
 │   ├── preprocess_data.py
 │   ├── encode_data.py        # 文本编码和定长 token ID 打包
 │   ├── train.py              # 预训练入口（单卡/DDP、验证、断点恢复）
-│   └── eval.py               # 待实现：模型评测入口
+│   ├── eval.py               # 模型评测入口
+│   └── chat.py               # Checkpoint 交互式生成入口
 ├── outputs/                  # 训练生成的本地产物，不提交大型文件
 │   ├── checkpoints/
 │   ├── logs/
