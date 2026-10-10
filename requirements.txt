@@ -1,0 +1,12 @@
+# v1 dependencies. Install with Python 3.10+.
+# Linux x86_64 NVIDIA hosts use the CUDA 12.1 wheel; macOS/CPU/other platforms
+# use the platform-neutral PyPI wheel. PyTorch selects MPS on Apple Silicon.
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+torch==2.5.1+cu121; sys_platform == "linux" and platform_machine == "x86_64"
+torch==2.5.1; sys_platform != "linux" or platform_machine != "x86_64"
+numpy==1.26.4
+PyYAML==6.0.2
+tokenizers==0.23.2
+tqdm==4.67.1
+transformers==5.17.0

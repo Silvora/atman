@@ -24,7 +24,7 @@ data_config: data.yaml     # 相对 configs/ 解析。
 training:
   output_dir: outputs/medium
   seed: 42
-  epochs: 1
+  epochs: 1                 # medium 先训练 1 轮，检查验证集 loss 后再决定是否续训。
   max_steps: 0
   batch_size: 1             # medium 单卡默认 micro batch；可用累积提高有效 batch。
   gradient_accumulation_steps: 16

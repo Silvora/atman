@@ -76,7 +76,7 @@ v1 计划包含：
 
 三个配置名称固定为 `small`、`medium`、`large`，不使用 `tiny_a`、`tiny_b`、`tiny_c`。
 
-当前阶段只确定配置文件职责，具体层数、隐藏维度、注意力头数、参数量和训练超参数将在设计评审后填写。
+small、medium、large 的层数、隐藏维度、注意力头数、参数量和训练超参数已经写入各自配置，并在模型实现中进行结构校验。
 
 公共数据与 Tokenizer 配置独立保存，避免在三个模型文件中重复维护。模型配置最终描述结构和训练参数：
 
@@ -277,6 +277,8 @@ small、medium、large 用于分析规模变化，同时必须记录控制变量
 - `scripts/train.py` 已实现训练、验证、日志、checkpoint 和恢复入口；
 - 尚未开始任何训练任务。
 
+`data/` 已从已验收的 v1 数据产物复制到本目录，包含原始语料、处理后的 JSONL、Tokenizer 和 2,048 长度编码文件。
+
 下一步依次完成：
 
 1. 使用 `--dry-run` 检查配置、数据和一次前向/反向；
@@ -284,3 +286,17 @@ small、medium、large 用于分析规模变化，同时必须记录控制变量
 3. 根据训练日志记录 Loss、Perplexity、速度和显存占用。
 
 上述正式数据和 Tokenizer 命令已经执行完成；如需重建，必须使用配置文件并显式确认 `--force` 的覆盖影响。
+
+## 11. v1 实现关系
+
+`v1-base` 是基础 Dense Decoder-only 基线。`v1-dense` 在独立目录中实现现代 Dense 结构和长上下文，`v1-moe` 在独立目录中实现 MoE、MLA 和长上下文。三个目录共享数据来源记录，模型代码、配置、编码长度和实验结果分别管理。
+
+## 12. 平台运行
+
+训练入口支持 `auto`、`cpu`、`cuda` 和 Apple Silicon 的 `mps`。macOS 可使用：
+
+```bash
+python scripts/train.py --config configs/small.yaml --device mps --dry-run
+```
+
+下载脚本使用 Bash；Windows 环境建议使用 WSL。数据处理、Tokenizer 和编码入口使用 Python 标准路径接口，可在 Linux、macOS 和 Windows 上运行。

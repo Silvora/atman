@@ -4,10 +4,20 @@ set -Eeuo pipefail
 
 # 所有路径都从脚本自身位置计算，因此可以从任意工作目录启动。
 # 修改 TARGET_DIR 会改变原始数据落盘位置，并需要同步 YAML 的 raw_dir。
-readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly V1_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+readonly SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly V1_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd -P)"
 readonly RAW_DIR="${V1_ROOT}/data/raw"
 readonly TARGET_DIR="${RAW_DIR}/minimind"
+
+# macOS 通常提供 python3，部分 Linux 环境仍使用 python；统一选择可用解释器。
+if command -v python3 >/dev/null 2>&1; then
+    readonly PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+    readonly PYTHON_BIN="python"
+else
+    printf '错误：未找到 python3 或 python，无法显示下载文件大小。\n' >&2
+    exit 1
+fi
 
 # 两个平台保存的是同一份发布数据，但 revision ID 属于各自仓库，不能混用。
 # 固定 revision 可以避免远端 master 更新后，同一命令得到不同训练语料。
@@ -131,22 +141,32 @@ printf '保存目录：%s\n' "${TARGET_DIR}"
 files_to_download=("${dataset_files[@]}" "README.md")
 
 if [[ "${source_name}" == "modelscope" ]]; then
-    # wget --continue 会复用未完成文件；重新运行脚本即可断点续传。
-    command -v wget >/dev/null 2>&1 || die "未找到 wget，无法从 ModelScope 下载"
-
-    for filename in "${files_to_download[@]}"; do
-        url="${MODELSCOPE_BASE_URL}/${revision}/${filename}"
-        filepath="${TARGET_DIR}/${filename}"
-        printf '\n正在下载：%s\n' "${url}"
-        wget_args=(
-            "--continue"
-            "--tries=10"
-            "--timeout=60"
-            "--output-document=${filepath}"
-            "${url}"
-        )
-        wget "${wget_args[@]}"
-    done
+    # 优先使用 wget；macOS 通常自带 curl，因此提供同样支持断点续传的回退路径。
+    if command -v wget >/dev/null 2>&1; then
+        for filename in "${files_to_download[@]}"; do
+            url="${MODELSCOPE_BASE_URL}/${revision}/${filename}"
+            filepath="${TARGET_DIR}/${filename}"
+            printf '\n正在下载：%s\n' "${url}"
+            wget_args=(
+                "--continue"
+                "--tries=10"
+                "--timeout=60"
+                "--output-document=${filepath}"
+                "${url}"
+            )
+            wget "${wget_args[@]}"
+        done
+    elif command -v curl >/dev/null 2>&1; then
+        for filename in "${files_to_download[@]}"; do
+            url="${MODELSCOPE_BASE_URL}/${revision}/${filename}"
+            filepath="${TARGET_DIR}/${filename}"
+            printf '\n正在下载：%s\n' "${url}"
+            curl --fail --location --retry 10 --connect-timeout 60 \
+                --continue-at - --output "${filepath}" "${url}"
+        done
+    else
+        die "未找到 wget 或 curl，无法从 ModelScope 下载"
+    fi
 else
     # Hugging Face 作为备用源。优先使用新版 hf，兼容旧版 huggingface-cli。
     if command -v hf >/dev/null 2>&1; then
@@ -183,11 +203,8 @@ done
 printf '\n下载完成。文件列表：\n'
 for filename in "${dataset_files[@]}" README.md; do
     filepath="${TARGET_DIR}/${filename}"
-    if command -v numfmt >/dev/null 2>&1; then
-        size="$(stat -c '%s' "${filepath}" | numfmt --to=iec-i --suffix=B)"
-    else
-        size="$(stat -c '%s bytes' "${filepath}")"
-    fi
+    # macOS 的 stat 参数与 GNU stat 不同；用 Python 获取文件大小，避免依赖 GNU coreutils。
+    size="$("${PYTHON_BIN}" -c 'import os, sys; print(f"{os.path.getsize(sys.argv[1])} bytes")' "${filepath}")"
     printf '  %s  %s\n' "${size}" "${filepath}"
 done
 

@@ -40,29 +40,60 @@ def parse_args() -> argparse.Namespace:
     """解析命令行参数；模型超参数仍从 YAML 读取。"""
     parser = argparse.ArgumentParser(description="Train the v1 decoder-only model")
     parser.add_argument("--config", type=Path, required=True, help="模型配置，例如 configs/small.yaml")
-    parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument(
+        "--device",
+        choices=("auto", "cpu", "cuda", "mps"),
+        default="auto",
+        help="运行设备；macOS Apple Silicon 可使用 mps",
+    )
     parser.add_argument("--max-steps", type=int, default=None, help="临时覆盖 training.max_steps")
     parser.add_argument("--resume", type=Path, default=None, help="临时覆盖 training.resume")
     parser.add_argument("--dry-run", action="store_true", help="只执行一个 batch 的前向/反向")
     return parser.parse_args()
 
 
+def mps_available() -> bool:
+    """检测 Apple Silicon 的 MPS 后端，同时兼容没有 MPS 属性的旧 PyTorch。"""
+
+    mps_backend = getattr(torch.backends, "mps", None)
+    if mps_backend is None or not mps_backend.is_available():
+        return False
+    is_built = getattr(mps_backend, "is_built", None)
+    return bool(is_built() if callable(is_built) else True)
+
+
 def setup_process(requested_device: str) -> tuple[torch.device, int, int, bool]:
-    """初始化 DDP，并返回 device、rank、world size 和主进程标志。"""
+    """初始化设备和 DDP，并返回 device、rank、world size 和主进程标志。"""
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     distributed = world_size > 1
     rank = int(os.environ.get("RANK", "0"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-    use_cuda = requested_device != "cpu" and torch.cuda.is_available()
-    if requested_device == "cuda" and not use_cuda:
-        raise RuntimeError("--device cuda was requested but CUDA is unavailable")
-    if use_cuda and distributed:
-        torch.cuda.set_device(local_rank)
-        device = torch.device("cuda", local_rank)
-    elif use_cuda:
-        device = torch.device("cuda")
+
+    cuda_available = torch.cuda.is_available()
+    mps_is_available = mps_available()
+    if requested_device == "auto":
+        if cuda_available:
+            device = torch.device("cuda", local_rank if distributed else 0)
+        elif mps_is_available:
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+    elif requested_device == "cuda":
+        if not cuda_available:
+            raise RuntimeError("--device cuda was requested but CUDA is unavailable")
+        device = torch.device("cuda", local_rank if distributed else 0)
+    elif requested_device == "mps":
+        if not mps_is_available:
+            raise RuntimeError("--device mps was requested but MPS is unavailable")
+        device = torch.device("mps")
     else:
         device = torch.device("cpu")
+
+    # PyTorch 的 DDP 后端可在 CPU 上使用 gloo；MPS 当前不作为 DDP 设备。
+    if device.type == "mps" and distributed:
+        raise RuntimeError("MPS training currently supports one process; omit torchrun")
+    if device.type == "cuda" and distributed:
+        torch.cuda.set_device(local_rank)
     if distributed:
         dist.init_process_group(backend="nccl" if device.type == "cuda" else "gloo")
     return device, rank, world_size, rank == 0
@@ -145,6 +176,7 @@ def make_loader(
         shuffle=(sampler is None and train),
         sampler=sampler,
         num_workers=workers,
+        # pin_memory 只对 CUDA 主机到设备传输有意义，MPS/CPU 关闭可避免平台警告。
         pin_memory=bool(training.get("pin_memory", True)),
         drop_last=bool(training.get("drop_last", True)) if train else False,
         persistent_workers=workers > 0,
@@ -188,6 +220,11 @@ def lr_factor(
 def precision_settings(requested: str, device: torch.device) -> tuple[torch.dtype | None, bool]:
     """根据设备能力选择 AMP 类型和是否需要 GradScaler。"""
     name = requested.lower()
+    # MPS 的 AMP 支持随 macOS/PyTorch 版本变化；默认使用 fp32 保证可移植性。
+    if device.type == "mps":
+        if name != "fp32":
+            print("提示：MPS 默认使用 fp32，忽略配置中的混合精度请求。", flush=True)
+        return None, False
     if device.type != "cuda" or name == "fp32":
         return None, False
     if name == "bf16" and torch.cuda.is_bf16_supported():
@@ -275,6 +312,9 @@ def train(args: argparse.Namespace) -> None:
             training["max_steps"] = args.max_steps
         if args.resume is not None:
             training["resume"] = str(args.resume)
+        if device.type != "cuda":
+            # 配置默认面向 CUDA；CPU/MPS 不使用 pinned memory。
+            training["pin_memory"] = False
         set_seed(int(training.get("seed", 42)), rank)
         train_set, validation_set, train_path, validation_path = prepare_data(
             data_config, model_config, training
@@ -314,7 +354,10 @@ def train(args: argparse.Namespace) -> None:
             lambda step: lr_factor(step, total_steps, warmup_steps, minimum_ratio),
         )
         autocast_dtype, use_scaler = precision_settings(str(training.get("precision", "fp32")), device)
-        scaler = torch.amp.GradScaler("cuda", enabled=use_scaler)
+        if hasattr(torch, "amp") and hasattr(torch.amp, "GradScaler"):
+            scaler = torch.amp.GradScaler("cuda", enabled=use_scaler)
+        else:  # 兼容较旧的 PyTorch CPU/MPS 环境。
+            scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
 
         start_step, start_epoch = 0, 0
         resume = training.get("resume")

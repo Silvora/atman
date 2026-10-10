@@ -26,7 +26,7 @@ data_config: data.yaml     # 数据配置文件，路径相对当前 configs 目
 training:
   output_dir: outputs/small # checkpoint、日志保存目录。
   seed: 42                  # 随机种子；改变会影响初始化和 batch 顺序。
-  epochs: 1                 # 完整遍历训练集的次数；max_steps>0 时优先用 max_steps。
+  epochs: 3                 # small 训练 3 轮；从已有 last.pt 恢复时只补齐第 3 轮。
   max_steps: 0              # 0 表示按 epochs 训练；正数用于受控实验。
   batch_size: 2             # 每张 GPU 的 micro batch；显存不足时减小它。
   gradient_accumulation_steps: 8 # 梯度累积次数；增大有效 batch 但降低更新频率。
