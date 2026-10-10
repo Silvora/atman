@@ -6,6 +6,18 @@
 >
 > 基于公开论文、技术报告和主流实现整理。时间范围用于描述技术演进，不代表严格的学术分期。
 
+## 项目分支
+
+本仓库使用独立分支保存三个模型项目，`main` 只维护技术演进说明文档：
+
+| 分支 | 项目 | 当前重点 |
+|---|---|---|
+| [`v1/base`](https://github.com/Silvora/atman/tree/v1/base) | 基础 Decoder-only 模型 | 数据处理、Tokenizer、预训练、评测和生成闭环 |
+| [`v1/dense`](https://github.com/Silvora/atman/tree/v1/dense) | 现代 Dense 模型 | RoPE、RMSNorm、SwiGLU、GQA 和长上下文 |
+| [`v1/moe`](https://github.com/Silvora/atman/tree/v1/moe) | MoE/MLA 模型 | 专家路由、MLA、稀疏激活和长上下文 |
+
+三个模型分支是独立项目，各自维护代码、配置、实验记录和训练产物。Dense 与 MoE 当前处于架构脚手架阶段，复制的 2,048 上下文数据只用于基线检查。
+
 ## 1. 总览
 
 | 版本 | 时间范围 | 核心范式 | 代表性模型或系统 | 一句话概括 |

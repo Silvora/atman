@@ -6,6 +6,18 @@
 >
 > Compiled from public papers, technical reports, and major implementations. The time ranges describe broad technical development and are not strict academic periods.
 
+## Project branches
+
+This repository keeps three model projects in independent branches. The `main` branch maintains the technical evolution documentation:
+
+| Branch | Project | Current focus |
+|---|---|---|
+| [`v1/base`](https://github.com/Silvora/atman/tree/v1/base) | Baseline Decoder-only model | Data processing, tokenizer, pre-training, evaluation, and generation |
+| [`v1/dense`](https://github.com/Silvora/atman/tree/v1/dense) | Modern Dense model | RoPE, RMSNorm, SwiGLU, GQA, and long context |
+| [`v1/moe`](https://github.com/Silvora/atman/tree/v1/moe) | MoE/MLA model | Expert routing, MLA, sparse activation, and long context |
+
+The three model branches are independent projects. Each branch maintains its own code, configuration, experiments, and training artifacts. Dense and MoE are currently architecture scaffolds; their copied 2,048-token data is only for baseline checks.
+
 ## 1. Overview
 
 | Version | Time range | Core paradigm | Representative models or systems | Summary |
